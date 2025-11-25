@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenAI 智能問答助手</title>
+    <title>Secured AI Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 自定義一個簡單的加載動畫 */
         .loader {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #3b82f6;
@@ -16,100 +15,140 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden-section { display: none; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
-    <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg overflow-hidden">
-        <div class="bg-blue-600 p-6">
-            <h1 class="text-2xl font-bold text-white text-center">OpenAI 練習專案</h1>
-            <p class="text-blue-100 text-center text-sm mt-2">基於 LangChain + FastAPI</p>
+    <div id="loginSection" class="bg-white w-full max-w-sm rounded-xl shadow-lg p-8">
+        <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">🔒 管理員登入</h2>
+        <input type="password" id="passwordInput" 
+            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-4"
+            placeholder="請輸入密碼"
+            onkeypress="if(event.key === 'Enter') doLogin()"
+        >
+        <button onclick="doLogin()" id="loginBtn"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition">
+            登入系統
+        </button>
+        <p id="loginError" class="text-red-500 text-center text-sm mt-3 hidden"></p>
+    </div>
+
+    <div id="chatSection" class="bg-white w-full max-w-2xl rounded-xl shadow-lg overflow-hidden hidden-section">
+        <div class="bg-gray-800 p-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-white">OpenAI 專屬助手</h1>
+            <button onclick="doLogout()" class="text-xs text-gray-300 hover:text-white underline">登出</button>
         </div>
 
         <div class="p-6 space-y-6">
-            
             <div>
-                <label for="question" class="block text-sm font-medium text-gray-700 mb-2">請輸入您的問題：</label>
-                <textarea 
-                    id="question" 
-                    rows="4" 
-                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
-                    placeholder="例如：今天天氣如何？"
-                ></textarea>
+                <label class="block text-sm font-medium text-gray-700 mb-2">請輸入您的問題：</label>
+                <textarea id="question" rows="4" 
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                    placeholder="今天想問什麼？"></textarea>
             </div>
 
-            <button 
-                onclick="askQuestion()" 
-                id="submitBtn"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200 flex items-center justify-center gap-2"
-            >
+            <button onclick="askQuestion()" id="submitBtn"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2">
                 <span>送出問題</span>
             </button>
 
             <div id="resultArea" class="hidden">
                 <div class="border-t pt-4">
                     <h3 class="text-lg font-semibold text-gray-800 mb-2">AI 回答：</h3>
-                    <div id="answerText" class="bg-gray-100 p-4 rounded-lg text-gray-700 leading-relaxed whitespace-pre-wrap">
-                        </div>
+                    <div id="answerText" class="bg-gray-100 p-4 rounded-lg text-gray-700 leading-relaxed whitespace-pre-wrap"></div>
                 </div>
             </div>
-
-            <div id="errorMsg" class="hidden text-red-500 text-center text-sm mt-2"></div>
         </div>
     </div>
 
     <script>
+        // 檢查是否已經登入過 (有 Token)
+        let savedToken = localStorage.getItem('chat_token');
+        if (savedToken) {
+            showChatUI();
+        }
+
+        async function doLogin() {
+            const pwd = document.getElementById('passwordInput').value;
+            const btn = document.getElementById('loginBtn');
+            const err = document.getElementById('loginError');
+            
+            btn.disabled = true;
+            btn.innerText = "驗證中...";
+            err.classList.add('hidden');
+
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ password: pwd })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    savedToken = data.token; // 儲存 Token
+                    localStorage.setItem('chat_token', savedToken);
+                    showChatUI();
+                } else {
+                    err.innerText = "密碼錯誤，請重試。";
+                    err.classList.remove('hidden');
+                }
+            } catch (e) {
+                err.innerText = "連線錯誤";
+                err.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "登入系統";
+            }
+        }
+
+        function doLogout() {
+            localStorage.removeItem('chat_token');
+            savedToken = null;
+            location.reload(); // 重新整理頁面回到登入
+        }
+
+        function showChatUI() {
+            document.getElementById('loginSection').classList.add('hidden-section');
+            document.getElementById('chatSection').classList.remove('hidden-section');
+        }
+
         async function askQuestion() {
             const questionInput = document.getElementById('question');
-            const resultArea = document.getElementById('resultArea');
             const answerText = document.getElementById('answerText');
+            const resultArea = document.getElementById('resultArea');
             const submitBtn = document.getElementById('submitBtn');
-            const errorMsg = document.getElementById('errorMsg');
 
-            const userQuestion = questionInput.value.trim();
+            if (!questionInput.value.trim()) return alert("請輸入問題");
 
-            if (!userQuestion) {
-                alert("請輸入問題！");
-                return;
-            }
-
-            // UI 狀態切換：顯示 Loading，鎖定按鈕
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<div class="loader"></div> 思考中...';
             resultArea.classList.add('hidden');
-            errorMsg.classList.add('hidden');
 
             try {
-                // 根據 main.py，你的後端運行在 5000 port，路徑是 /chat
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'x-secret-token': savedToken // 關鍵：帶上 Token
                     },
-                    // 根據 main.py 的 ChatRequest 模型，必須包含 'user' 欄位
-                    body: JSON.stringify({ 
-                        user: userQuestion 
-                        // model 和 system 使用後端預設值，這裡不傳也可以
-                    })
+                    body: JSON.stringify({ user: questionInput.value })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                if (response.status === 401) {
+                    alert("認證過期，請重新登入");
+                    doLogout();
+                    return;
                 }
 
                 const data = await response.json();
-                
-                // 顯示結果
-                // 根據 main.py，回傳格式是 {"answer": result}
-                answerText.innerText = data.answer; 
+                answerText.innerText = data.answer;
                 resultArea.classList.remove('hidden');
 
             } catch (error) {
-                console.error('Error:', error);
-                errorMsg.innerText = "發生錯誤，請確認後端伺服器是否已啟動 (python main.py)。";
-                errorMsg.classList.remove('hidden');
+                alert("發生錯誤: " + error);
             } finally {
-                // 恢復按鈕狀態
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<span>送出問題</span>';
             }
