@@ -6,6 +6,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 # 讀取 .env 檔案
 load_dotenv()
@@ -19,6 +21,18 @@ class ChatRequest(BaseModel):
     user: str
 
 app = FastAPI(title="LC + OpenAI: chat")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允許所有來源（開發階段方便，正式上線建議指定網域）
+    allow_credentials=True,
+    allow_methods=["*"],  # 允許所有 HTTP 方法 (POST, GET, etc.)
+    allow_headers=["*"],  # 允許所有 Header
+)
+
+@app.get("/")
+def read_root():
+    return FileResponse("index.html")
 
 @app.post("/chat")
 def chat(req: ChatRequest):
