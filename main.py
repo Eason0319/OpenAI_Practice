@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -18,6 +19,8 @@ LLM_MODEL = "gpt-4o-mini"
 DEFAULT_SYSTEM_PROMPT = "你是精煉且忠實的助教，禁止臆測。嚴禁生成不符合事實的內容。"
 # 讀取我們剛設定的密碼
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "secret")
+
+header_scheme = APIKeyHeader(name="x-secret-token", auto_error=False)
 
 # 定義請求模型
 class ChatRequest(BaseModel):
@@ -41,12 +44,11 @@ app.add_middleware(
 
 # 驗證函數 (Security Dependency)
 # 每個受保護的請求都需要在 Header 帶上 x-secret-token
-async def verify_token(x_secret_token: str = Header(...)):
-    # 這裡做一個簡單的驗證：Token 必須等於我們的密碼
-    # (在生產環境通常會發行 JWT，但個人練習這樣最快且有效)
-    if x_secret_token != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid Token")
-    return x_secret_token
+async def verify_token(api_key: str = Depends(header_scheme)):
+    # 如果 api_key 為空或不正確，拋出 401
+    if api_key != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid or missing Token")
+    return api_key
 
 @app.get("/")
 def read_root():
@@ -62,8 +64,8 @@ def login(req: LoginRequest):
         raise HTTPException(status_code=401, detail="密碼錯誤")
 
 # [Modified] 聊天 API，加入 verify_token 依賴
-@app.post("/chat")
-def chat(req: ChatRequest, token: str = Depends(verify_token)):
+@app.post("/chat", dependencies=[Depends(verify_token)])
+def chat(req: ChatRequest):
     sys_merged = DEFAULT_SYSTEM_PROMPT if req.system == DEFAULT_SYSTEM_PROMPT \
                  else f"{DEFAULT_SYSTEM_PROMPT}\n\n[用戶補充]\n{req.system or ''}"
 
