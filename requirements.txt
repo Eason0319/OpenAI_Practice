@@ -7,3 +7,5 @@ python-dotenv>=1.1.0
 # LangChain 核心依赖（仅实际使用的）
 langchain-openai>=0.3.35
 langchain-core>=0.3.78
+langchain-pinecone>=0.2.0
+pinecone-client>=5.0.0
